@@ -26,9 +26,7 @@ export interface CloudFormationTemplate {
   Resources: Record<string, Resource>;
 }
 
-export interface HydratedStack extends Stack {
-  metadata: {
-    resourceTypes: string[];
-    isDefinedWithGuCDK: boolean;
-  };
+export interface StackInfo extends Pick<Stack, "StackId" | "StackName" | "StackStatus" | "CreationTime"> {
+  ResourceTypes: string[];
+  DefinedWithGuCDK: boolean;
 }

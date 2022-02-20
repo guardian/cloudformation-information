@@ -8,7 +8,7 @@ import {
 import { fromIni } from "@aws-sdk/credential-provider-ini";
 import { StandardRetryStrategy } from "@aws-sdk/middleware-retry";
 import { yamlParse } from "yaml-cfn";
-import type { CloudFormationTemplate, HydratedStack } from "./types";
+import type { CloudFormationTemplate, StackInfo } from "./types";
 
 const GU_CDK_TAG = "gu:cdk:version";
 const SDK_MAX_ATTEMPTS = 10;
@@ -65,28 +65,26 @@ class CloudFormationInformation {
       .some((tag) => tag.Key === GU_CDK_TAG);
   }
 
-  async run(): Promise<HydratedStack[]> {
+  async run(): Promise<StackInfo[]> {
     const allStacks: Stack[] = await this.describeStacks();
     const stacks: Stack[] = allStacks.filter(({ StackStatus: status }) => status !== StackStatus.DELETE_COMPLETE);
 
     return await Promise.all(
       stacks.map(async (stack: Stack) => {
-        const { StackId } = stack;
+        const { StackId, StackName, StackStatus, CreationTime } = stack;
 
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- AWS's types are strange, `StackId` is never going to be `undefined`
         const stackArn = StackId!;
-
         const template = await this.getTemplate(stackArn);
-        const resourceTypes = CloudFormationInformation.getUniqueTemplateResourceTypes(template);
-        const isDefinedWithGuCDK = CloudFormationInformation.isStackDefinedWithGuCDK(template);
 
         return {
-          ...stack,
-          metadata: {
-            resourceTypes,
-            isDefinedWithGuCDK,
-          },
-        } as HydratedStack;
+          StackId,
+          StackStatus,
+          StackName,
+          CreationTime,
+          ResourceTypes: CloudFormationInformation.getUniqueTemplateResourceTypes(template),
+          DefinedWithGuCDK: CloudFormationInformation.isStackDefinedWithGuCDK(template),
+        };
       })
     );
   }
