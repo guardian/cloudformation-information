@@ -7,16 +7,27 @@ import {
   StackStatus,
 } from "@aws-sdk/client-cloudformation";
 import { fromIni } from "@aws-sdk/credential-provider-ini";
+import { StandardRetryStrategy } from "@aws-sdk/middleware-retry";
 import { yamlParse } from "yaml-cfn";
 import type { CloudFormationTemplate, HydratedStack } from "./types";
 
 const GU_CDK_TAG = "gu:cdk:version";
+const SDK_MAX_ATTEMPTS = 10;
+const SDK_MAX_RETRY_DELAY = 30 * 1000;
 
 class CloudFormationInformation {
   private readonly client: CloudFormationClient;
 
   constructor(profile: string, region: string = "eu-west-1") {
-    this.client = new CloudFormationClient({ region, credentials: fromIni({ profile }) });
+    this.client = new CloudFormationClient({
+      region,
+      credentials: fromIni({ profile }),
+      retryStrategy: new StandardRetryStrategy(() => Promise.resolve(SDK_MAX_ATTEMPTS), {
+        delayDecider: (delayBase: number, attempts: number) => {
+          return Math.floor(Math.min(SDK_MAX_RETRY_DELAY, 2 ** attempts * delayBase));
+        },
+      }),
+    });
   }
 
   private async describeStacks(next?: string): Promise<Stack[]> {
