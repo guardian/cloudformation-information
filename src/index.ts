@@ -1,9 +1,9 @@
-import { existsSync, mkdirSync, rmSync } from "fs";
-import { writeFile } from "fs/promises";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "fs";
 import path from "path";
 import { parse, transforms } from "json2csv";
 import { CloudFormationInformation } from "./cloudformation";
 import { Config } from "./config";
+import type { StackInfo } from "./types";
 
 function ensureCleanDirectory(name: string) {
   if (existsSync(name)) {
@@ -12,22 +12,32 @@ function ensureCleanDirectory(name: string) {
   mkdirSync(name, { recursive: true });
 }
 
-async function main() {
+async function main(): Promise<StackInfo[]> {
   ensureCleanDirectory(Config.CSV_OUTPUT_DIR);
 
-  return await Promise.all(
+  const stackInfo: Array<Awaited<StackInfo[]>> = await Promise.all(
     Config.AWS_PROFILES.map(async (profile) => {
       const templateDir = path.join(Config.TEMPLATE_OUTPUT_DIR, Config.AWS_REGION, profile);
       ensureCleanDirectory(templateDir);
       const data = await new CloudFormationInformation(profile, Config.AWS_REGION, templateDir).run();
-      await writeFile(
+      writeFileSync(
         path.join(Config.CSV_OUTPUT_DIR, `${profile}.csv`),
         parse(data, { transforms: [transforms.unwind({ paths: ["ResourceTypes"] })] })
       );
+      return data;
     })
   );
+
+  return stackInfo.flat();
 }
 
 main()
-  .then(() => console.log(`Done. Files written to: ${Config.CSV_OUTPUT_DIR}`))
+  .then((stackInfo) => {
+    console.log(stackInfo);
+    writeFileSync(
+      path.join(Config.CSV_OUTPUT_DIR, "combined.csv"),
+      parse(stackInfo, { transforms: [transforms.unwind({ paths: ["ResourceTypes"] })] })
+    );
+    console.log(`Done. Files written to: ${Config.CSV_OUTPUT_DIR}`);
+  })
   .catch(console.error);
