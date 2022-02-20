@@ -29,4 +29,5 @@ export interface CloudFormationTemplate {
 export interface StackInfo extends Pick<Stack, "StackId" | "StackName" | "StackStatus" | "CreationTime"> {
   ResourceTypes: string[];
   DefinedWithGuCDK: boolean;
+  Profile: string;
 }
