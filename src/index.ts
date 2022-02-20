@@ -3,7 +3,6 @@ import {
   CloudFormationClient,
   DescribeStacksCommand,
   GetTemplateCommand,
-  GetTemplateSummaryCommand,
   StackStatus,
 } from "@aws-sdk/client-cloudformation";
 import { fromIni } from "@aws-sdk/credential-provider-ini";
@@ -55,15 +54,11 @@ class CloudFormationInformation {
     }
   }
 
-  private async getUniqueTemplateResourceTypes(stackArn: string): Promise<string[]> {
-    const command: GetTemplateSummaryCommand = new GetTemplateSummaryCommand({ StackName: stackArn });
-    const { ResourceTypes = [] } = await this.client.send(command);
-    return Promise.resolve(Array.from(new Set(ResourceTypes)));
+  private static getUniqueTemplateResourceTypes({ Resources }: CloudFormationTemplate): string[] {
+    return Array.from(new Set(Object.values(Resources).map((_) => _.Type)));
   }
 
-  private async isStackDefinedWithGuCDK(stackArn: string): Promise<boolean> {
-    const { Resources }: CloudFormationTemplate = await this.getTemplate(stackArn);
-
+  private static isStackDefinedWithGuCDK({ Resources }: CloudFormationTemplate): boolean {
     return Object.values(Resources)
       .flatMap((resource) => resource.Properties)
       .flatMap((properties) => properties?.Tags ?? [])
@@ -81,8 +76,9 @@ class CloudFormationInformation {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- AWS's types are strange, `StackId` is never going to be `undefined`
         const stackArn = StackId!;
 
-        const resourceTypes = await this.getUniqueTemplateResourceTypes(stackArn);
-        const isDefinedWithGuCDK = await this.isStackDefinedWithGuCDK(stackArn);
+        const template = await this.getTemplate(stackArn);
+        const resourceTypes = CloudFormationInformation.getUniqueTemplateResourceTypes(template);
+        const isDefinedWithGuCDK = CloudFormationInformation.isStackDefinedWithGuCDK(template);
 
         return {
           ...stack,
