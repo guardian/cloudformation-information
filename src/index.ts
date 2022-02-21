@@ -14,11 +14,13 @@ function ensureCleanDirectory(name: string) {
 
 async function main(): Promise<StackInfo[]> {
   ensureCleanDirectory(Config.CSV_OUTPUT_DIR);
+  ensureCleanDirectory(Config.TEMPLATE_OUTPUT_DIR);
 
   const stackInfo: Array<Awaited<StackInfo[]>> = await Promise.all(
     Config.AWS_PROFILES.map(async (profile) => {
       const templateDir = path.join(Config.TEMPLATE_OUTPUT_DIR, Config.AWS_REGION, profile);
-      ensureCleanDirectory(templateDir);
+      mkdirSync(templateDir, { recursive: true });
+
       const data = await new CloudFormationInformation(profile, Config.AWS_REGION, templateDir).run();
       writeFileSync(
         path.join(Config.CSV_OUTPUT_DIR, `${profile}.csv`),
@@ -33,7 +35,6 @@ async function main(): Promise<StackInfo[]> {
 
 main()
   .then((stackInfo) => {
-    console.log(stackInfo);
     writeFileSync(
       path.join(Config.CSV_OUTPUT_DIR, "combined.csv"),
       parse(stackInfo, { transforms: [transforms.unwind({ paths: ["ResourceTypes"] })] })

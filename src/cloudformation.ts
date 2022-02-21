@@ -24,6 +24,7 @@ export class CloudFormationInformation {
 
     this.client = new CloudFormationClient({
       region,
+      maxAttempts: Config.SDK_MAX_ATTEMPTS,
       credentials: fromIni({ profile }),
       retryStrategy: new StandardRetryStrategy(() => Promise.resolve(Config.SDK_MAX_ATTEMPTS), {
         delayDecider: (delayBase: number, attempts: number) => {
@@ -75,6 +76,7 @@ export class CloudFormationInformation {
 
   async run(): Promise<StackInfo[]> {
     const allStacks: Stack[] = await this.describeStacks();
+    console.log(`[${this.profile}] Found ${allStacks.length} stacks`);
     const stacks: Stack[] = allStacks.filter(({ StackStatus: status }) => status !== StackStatus.DELETE_COMPLETE);
 
     return await Promise.all(
@@ -83,17 +85,29 @@ export class CloudFormationInformation {
 
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- AWS's types are strange, `StackId` is never going to be `undefined`
         const stackArn = StackId!;
-        const template = await this.getTemplate(stackArn, StackName ?? "unknown");
 
-        return {
-          StackId,
-          StackStatus,
-          StackName,
-          CreationTime,
-          ResourceTypes: CloudFormationInformation.getUniqueTemplateResourceTypes(template),
-          DefinedWithGuCDK: CloudFormationInformation.isStackDefinedWithGuCDK(template),
-          Profile: this.profile,
-        };
+        try {
+          const template = await this.getTemplate(stackArn, StackName ?? "unknown");
+          return {
+            StackId,
+            StackStatus,
+            StackName,
+            CreationTime,
+            ResourceTypes: CloudFormationInformation.getUniqueTemplateResourceTypes(template),
+            DefinedWithGuCDK: CloudFormationInformation.isStackDefinedWithGuCDK(template),
+            Profile: this.profile,
+          };
+        } catch (err) {
+          return {
+            StackId,
+            StackStatus,
+            StackName,
+            CreationTime,
+            ResourceTypes: ["unknown"],
+            DefinedWithGuCDK: false,
+            Profile: this.profile,
+          };
+        }
       })
     );
   }
