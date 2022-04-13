@@ -74,6 +74,15 @@ export class CloudFormationInformation {
       .some((tag) => tag.Key === Config.GU_CDK_TAG);
   }
 
+  private static guCDKVersion({ Resources }: CloudFormationTemplate): string | undefined {
+    const guCDKTag = Object.values(Resources)
+      .flatMap((resource) => resource.Properties)
+      .flatMap((properties) => properties?.Tags ?? [])
+      .find((tag) => tag.Key === Config.GU_CDK_TAG);
+
+    return guCDKTag ? guCDKTag.Value : undefined;
+  }
+
   async run(): Promise<StackInfo[]> {
     const allStacks: Stack[] = await this.describeStacks();
     console.log(`[${this.profile}] Found ${allStacks.length} stacks`);
@@ -81,7 +90,7 @@ export class CloudFormationInformation {
 
     return await Promise.all(
       stacks.map(async (stack: Stack) => {
-        const { StackId, StackName, StackStatus, CreationTime } = stack;
+        const { StackId, StackName, StackStatus, CreationTime, LastUpdatedTime } = stack;
 
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- AWS's types are strange, `StackId` is never going to be `undefined`
         const stackArn = StackId!;
@@ -93,8 +102,10 @@ export class CloudFormationInformation {
             StackStatus,
             StackName,
             CreationTime,
+            LastUpdatedTime,
             ResourceTypes: CloudFormationInformation.getUniqueTemplateResourceTypes(template),
             DefinedWithGuCDK: CloudFormationInformation.isStackDefinedWithGuCDK(template),
+            GuCDKVersion: CloudFormationInformation.guCDKVersion(template),
             Profile: this.profile,
           };
         } catch (err) {
@@ -103,6 +114,7 @@ export class CloudFormationInformation {
             StackStatus,
             StackName,
             CreationTime,
+            LastUpdatedTime,
             ResourceTypes: ["unknown"],
             DefinedWithGuCDK: false,
             Profile: this.profile,
