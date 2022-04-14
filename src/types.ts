@@ -29,7 +29,7 @@ export interface CloudFormationTemplate {
 export interface StackMetadata
   extends Pick<Stack, "StackId" | "StackName" | "StackStatus" | "CreationTime" | "LastUpdatedTime"> {
   Profile: string;
-  Template: CloudFormationTemplate;
+  Template?: CloudFormationTemplate;
 }
 
 export interface StackInfo extends StackMetadata {

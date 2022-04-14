@@ -39,18 +39,29 @@ export class CloudFormationInformation {
           ...page.Stacks.map(async (stack: Stack) => {
             const { StackId, StackName, StackStatus, CreationTime, LastUpdatedTime } = stack;
 
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- AWS's types are strange, `StackId` and `StackName` are never going to be `undefined`
-            const template = await this.getTemplate(StackId!, StackName!);
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- AWS's types are strange, `StackId` and `StackName` are never going to be `undefined`
+              const template = await this.getTemplate(StackId!, StackName!);
 
-            return {
-              StackId,
-              StackName,
-              StackStatus,
-              CreationTime,
-              LastUpdatedTime,
-              Profile: this.profile,
-              Template: template,
-            };
+              return {
+                StackId,
+                StackName,
+                StackStatus,
+                CreationTime,
+                LastUpdatedTime,
+                Profile: this.profile,
+                Template: template,
+              };
+            } catch (e) {
+              return {
+                StackId,
+                StackName,
+                StackStatus,
+                CreationTime,
+                LastUpdatedTime,
+                Profile: this.profile,
+              };
+            }
           })
         );
       }
@@ -72,6 +83,11 @@ export class CloudFormationInformation {
         try {
           return yamlParse(TemplateBody) as CloudFormationTemplate;
         } catch (e) {
+          /*
+          Failure here is likely due to the YAML template not matching the schema, e.g. there are duplicated properties.
+          The template should still have been downloaded to `this.templateDir` though.
+          See https://github.com/guardian/payment-api/pull/209
+           */
           return Promise.reject(
             `[${this.profile}] Unable to determine a JSON or YAML template for stack ${stackName} (${stackArn})`
           );
@@ -109,22 +125,20 @@ export class CloudFormationInformation {
     console.log(`[${this.profile}] Found ${allStacks.length} stacks. ${stacks.length} are not deleted.`);
 
     return stacks.map((stack) => {
-      try {
-        const template = stack.Template;
+      const template = stack.Template;
 
-        return {
-          ...stack,
-          ResourceTypes: CloudFormationInformation.getUniqueTemplateResourceTypes(template),
-          DefinedWithGuCDK: CloudFormationInformation.isStackDefinedWithGuCDK(template),
-          GuCDKVersion: CloudFormationInformation.guCDKVersion(template),
-        };
-      } catch (e) {
-        return {
-          ...stack,
-          ResourceTypes: [],
-          DefinedWithGuCDK: false,
-        };
-      }
+      return template
+        ? {
+            ...stack,
+            ResourceTypes: CloudFormationInformation.getUniqueTemplateResourceTypes(template),
+            DefinedWithGuCDK: CloudFormationInformation.isStackDefinedWithGuCDK(template),
+            GuCDKVersion: CloudFormationInformation.guCDKVersion(template),
+          }
+        : {
+            ...stack,
+            ResourceTypes: [],
+            DefinedWithGuCDK: false,
+          };
     });
   }
 }
