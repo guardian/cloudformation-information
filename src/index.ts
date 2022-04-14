@@ -3,7 +3,7 @@ import path from "path";
 import { parse, transforms } from "json2csv";
 import { CloudFormationInformation } from "./cloudformation";
 import { Config } from "./config";
-import type { StackInfo } from "./types";
+import { StackInfoForCsv } from "./types";
 
 function ensureCleanDirectory(name: string) {
   if (existsSync(name)) {
@@ -12,21 +12,23 @@ function ensureCleanDirectory(name: string) {
   mkdirSync(name, { recursive: true });
 }
 
-async function main(): Promise<StackInfo[]> {
+async function main(): Promise<StackInfoForCsv[]> {
   ensureCleanDirectory(Config.CSV_OUTPUT_DIR);
   ensureCleanDirectory(Config.TEMPLATE_OUTPUT_DIR);
 
-  const stackInfo: Array<Awaited<StackInfo[]>> = await Promise.all(
+  const stackInfo: Array<Awaited<StackInfoForCsv[]>> = await Promise.all(
     Config.AWS_PROFILES.map(async (profile) => {
       const templateDir = path.join(Config.TEMPLATE_OUTPUT_DIR, Config.AWS_REGION, profile);
       mkdirSync(templateDir, { recursive: true });
 
       const data = await new CloudFormationInformation(profile, Config.AWS_REGION, templateDir).run();
+      const dataForCsv = data.map((data) => StackInfoForCsv.fromStackInfo(data));
+
       writeFileSync(
         path.join(Config.CSV_OUTPUT_DIR, `${profile}.csv`),
-        parse(data, { transforms: [transforms.unwind({ paths: ["ResourceTypes"] })] })
+        parse(dataForCsv, { transforms: [transforms.unwind({ paths: ["ResourceTypes"] })] })
       );
-      return data;
+      return dataForCsv;
     })
   );
 

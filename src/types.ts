@@ -26,10 +26,42 @@ export interface CloudFormationTemplate {
   Resources: Record<string, Resource>;
 }
 
-export interface StackInfo
+export interface StackMetadata
   extends Pick<Stack, "StackId" | "StackName" | "StackStatus" | "CreationTime" | "LastUpdatedTime"> {
+  Profile: string;
+  Template: CloudFormationTemplate;
+}
+
+export interface StackInfo extends StackMetadata {
   ResourceTypes: string[];
   DefinedWithGuCDK: boolean;
   GuCDKVersion?: string;
-  Profile: string;
 }
+
+export type StackInfoForCsv = Omit<StackInfo, "Template">;
+
+export const StackInfoForCsv = {
+  fromStackInfo({
+    StackId,
+    StackName,
+    StackStatus,
+    CreationTime,
+    LastUpdatedTime,
+    Profile,
+    ResourceTypes,
+    DefinedWithGuCDK,
+    GuCDKVersion,
+  }: StackInfo): StackInfoForCsv {
+    return {
+      StackId,
+      StackName,
+      StackStatus,
+      CreationTime,
+      LastUpdatedTime,
+      Profile,
+      ResourceTypes,
+      DefinedWithGuCDK,
+      GuCDKVersion,
+    };
+  },
+};

@@ -1,17 +1,16 @@
 import { writeFile } from "fs/promises";
 import path from "path";
-import type { DescribeStacksCommandOutput, GetTemplateCommandOutput, Stack } from "@aws-sdk/client-cloudformation";
+import type { Stack } from "@aws-sdk/client-cloudformation";
 import {
   CloudFormationClient,
-  DescribeStacksCommand,
   GetTemplateCommand,
+  paginateDescribeStacks,
   StackStatus,
 } from "@aws-sdk/client-cloudformation";
 import { fromIni } from "@aws-sdk/credential-provider-ini";
-import { StandardRetryStrategy } from "@aws-sdk/middleware-retry";
 import { yamlParse } from "yaml-cfn";
 import { Config } from "./config";
-import type { CloudFormationTemplate, StackInfo } from "./types";
+import type { CloudFormationTemplate, StackInfo, StackMetadata } from "./types";
 
 export class CloudFormationInformation {
   private readonly profile: string;
@@ -26,39 +25,57 @@ export class CloudFormationInformation {
       region,
       maxAttempts: Config.SDK_MAX_ATTEMPTS,
       credentials: fromIni({ profile }),
-      retryStrategy: new StandardRetryStrategy(() => Promise.resolve(Config.SDK_MAX_ATTEMPTS), {
-        delayDecider: (delayBase: number, attempts: number) => {
-          return Math.floor(Math.min(Config.SDK_MAX_RETRY_DELAY, 2 ** attempts * delayBase));
-        },
-      }),
     });
   }
 
-  private async describeStacks(next?: string): Promise<Stack[]> {
-    const command: DescribeStacksCommand = new DescribeStacksCommand({ NextToken: next });
-    const { Stacks = [], NextToken }: DescribeStacksCommandOutput = await this.client.send(command);
-    return NextToken ? [...Stacks, ...(await this.describeStacks(NextToken))] : Stacks;
+  private async getStacks(): Promise<StackMetadata[]> {
+    const paginator = paginateDescribeStacks({ client: this.client, pageSize: 10 }, {});
+
+    const stacks: Array<Promise<StackMetadata>> = [];
+
+    for await (const page of paginator) {
+      if (page.Stacks) {
+        stacks.push(
+          ...page.Stacks.map(async (stack: Stack) => {
+            const { StackId, StackName, StackStatus, CreationTime, LastUpdatedTime } = stack;
+
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- AWS's types are strange, `StackId` and `StackName` are never going to be `undefined`
+            const template = await this.getTemplate(StackId!, StackName!);
+
+            return {
+              StackId,
+              StackName,
+              StackStatus,
+              CreationTime,
+              LastUpdatedTime,
+              Profile: this.profile,
+              Template: template,
+            };
+          })
+        );
+      }
+    }
+
+    return Promise.all(stacks);
   }
 
   private async getTemplate(stackArn: string, stackName: string): Promise<CloudFormationTemplate> {
-    const command: GetTemplateCommand = new GetTemplateCommand({ StackName: stackArn });
-    const { TemplateBody }: GetTemplateCommandOutput = await this.client.send(command);
+    const { TemplateBody } = await this.client.send(new GetTemplateCommand({ StackName: stackArn }));
 
     if (!TemplateBody) {
-      return Promise.reject("No template");
-    }
-
-    await writeFile(path.join(this.templateDir, stackName), TemplateBody);
-
-    try {
-      return JSON.parse(TemplateBody) as CloudFormationTemplate;
-    } catch (err) {
+      return Promise.reject(`No template found for ${stackArn}`);
+    } else {
       try {
-        return yamlParse(TemplateBody) as CloudFormationTemplate;
-      } catch (e) {
-        return Promise.reject(
-          `[${this.profile}] Unable to determine a JSON or YAML template for stack ${stackName} (${stackArn})`
-        );
+        await writeFile(path.join(this.templateDir, stackName), TemplateBody);
+        return JSON.parse(TemplateBody) as CloudFormationTemplate;
+      } catch (err) {
+        try {
+          return yamlParse(TemplateBody) as CloudFormationTemplate;
+        } catch (e) {
+          return Promise.reject(
+            `[${this.profile}] Unable to determine a JSON or YAML template for stack ${stackName} (${stackArn})`
+          );
+        }
       }
     }
   }
@@ -84,43 +101,30 @@ export class CloudFormationInformation {
   }
 
   async run(): Promise<StackInfo[]> {
-    const allStacks: Stack[] = await this.describeStacks();
-    console.log(`[${this.profile}] Found ${allStacks.length} stacks`);
-    const stacks: Stack[] = allStacks.filter(({ StackStatus: status }) => status !== StackStatus.DELETE_COMPLETE);
-
-    return await Promise.all(
-      stacks.map(async (stack: Stack) => {
-        const { StackId, StackName, StackStatus, CreationTime, LastUpdatedTime } = stack;
-
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- AWS's types are strange, `StackId` is never going to be `undefined`
-        const stackArn = StackId!;
-
-        try {
-          const template = await this.getTemplate(stackArn, StackName ?? "unknown");
-          return {
-            StackId,
-            StackStatus,
-            StackName,
-            CreationTime,
-            LastUpdatedTime,
-            ResourceTypes: CloudFormationInformation.getUniqueTemplateResourceTypes(template),
-            DefinedWithGuCDK: CloudFormationInformation.isStackDefinedWithGuCDK(template),
-            GuCDKVersion: CloudFormationInformation.guCDKVersion(template),
-            Profile: this.profile,
-          };
-        } catch (err) {
-          return {
-            StackId,
-            StackStatus,
-            StackName,
-            CreationTime,
-            LastUpdatedTime,
-            ResourceTypes: ["unknown"],
-            DefinedWithGuCDK: false,
-            Profile: this.profile,
-          };
-        }
-      })
+    const allStacks: StackMetadata[] = await this.getStacks();
+    const stacks: StackMetadata[] = allStacks.filter(
+      ({ StackStatus: status }) => status !== StackStatus.DELETE_COMPLETE
     );
+
+    console.log(`[${this.profile}] Found ${allStacks.length} stacks. ${stacks.length} are not deleted.`);
+
+    return stacks.map((stack) => {
+      try {
+        const template = stack.Template;
+
+        return {
+          ...stack,
+          ResourceTypes: CloudFormationInformation.getUniqueTemplateResourceTypes(template),
+          DefinedWithGuCDK: CloudFormationInformation.isStackDefinedWithGuCDK(template),
+          GuCDKVersion: CloudFormationInformation.guCDKVersion(template),
+        };
+      } catch (e) {
+        return {
+          ...stack,
+          ResourceTypes: [],
+          DefinedWithGuCDK: false,
+        };
+      }
+    });
   }
 }
