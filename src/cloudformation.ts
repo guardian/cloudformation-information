@@ -16,10 +16,12 @@ export class CloudFormationInformation {
   private readonly profile: string;
   private readonly client: CloudFormationClient;
   private readonly templateDir: string;
+  private readonly region: string;
 
   constructor(profile: string, region: string, templateDir: string) {
     this.profile = profile;
     this.templateDir = templateDir;
+    this.region = region;
 
     this.client = new CloudFormationClient({
       region,
@@ -50,6 +52,7 @@ export class CloudFormationInformation {
                 CreationTime,
                 LastUpdatedTime,
                 Profile: this.profile,
+                Region: this.region,
                 Template: template,
               };
             } catch (e) {
@@ -60,6 +63,7 @@ export class CloudFormationInformation {
                 CreationTime,
                 LastUpdatedTime,
                 Profile: this.profile,
+                Region: this.region,
               };
             }
           })
@@ -122,7 +126,7 @@ export class CloudFormationInformation {
       ({ StackStatus: status }) => status !== StackStatus.DELETE_COMPLETE
     );
 
-    console.log(`[${this.profile}] Found ${allStacks.length} stacks. ${stacks.length} are not deleted.`);
+    console.log(`[${this.profile}] [${this.region}] Found ${allStacks.length} stacks (${stacks.length} active).`);
 
     return stacks.map((stack) => {
       const template = stack.Template;

@@ -17,19 +17,24 @@ async function main(): Promise<StackInfoForCsv[]> {
   ensureCleanDirectory(Config.TEMPLATE_OUTPUT_DIR);
 
   const stackInfo: Array<Awaited<StackInfoForCsv[]>> = await Promise.all(
-    Config.AWS_PROFILES.map(async (profile) => {
-      const templateDir = path.join(Config.TEMPLATE_OUTPUT_DIR, Config.AWS_REGION, profile);
-      mkdirSync(templateDir, { recursive: true });
+    Config.AWS_PROFILES.map((profile) => {
+      return Config.AWS_REGIONS.map(async (region) => {
+        const templateDir = path.join(Config.TEMPLATE_OUTPUT_DIR, region, profile);
+        mkdirSync(templateDir, { recursive: true });
 
-      const data = await new CloudFormationInformation(profile, Config.AWS_REGION, templateDir).run();
-      const dataForCsv = data.map((data) => StackInfoForCsv.fromStackInfo(data));
+        const data = await new CloudFormationInformation(profile, region, templateDir).run();
+        const dataForCsv = data.map((data) => StackInfoForCsv.fromStackInfo(data));
 
-      writeFileSync(
-        path.join(Config.CSV_OUTPUT_DIR, `${profile}.csv`),
-        parse(dataForCsv, { transforms: [transforms.unwind({ paths: ["ResourceTypes"] })] })
-      );
-      return dataForCsv;
-    })
+        if (dataForCsv.length > 0) {
+          writeFileSync(
+            path.join(Config.CSV_OUTPUT_DIR, `${profile}.csv`),
+            parse(dataForCsv, { transforms: [transforms.unwind({ paths: ["ResourceTypes"] })] })
+          );
+        }
+
+        return dataForCsv;
+      });
+    }).flat()
   );
 
   return stackInfo.flat();
@@ -37,10 +42,12 @@ async function main(): Promise<StackInfoForCsv[]> {
 
 main()
   .then((stackInfo) => {
-    writeFileSync(
-      path.join(Config.CSV_OUTPUT_DIR, "combined.csv"),
-      parse(stackInfo, { transforms: [transforms.unwind({ paths: ["ResourceTypes"] })] })
-    );
+    if (stackInfo.length > 0) {
+      writeFileSync(
+        path.join(Config.CSV_OUTPUT_DIR, "combined.csv"),
+        parse(stackInfo, { transforms: [transforms.unwind({ paths: ["ResourceTypes"] })] })
+      );
+    }
     console.log(`Done. Files written to: ${Config.CSV_OUTPUT_DIR}`);
   })
   .catch(console.error);

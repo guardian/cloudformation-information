@@ -29,6 +29,7 @@ export interface CloudFormationTemplate {
 export interface StackMetadata
   extends Pick<Stack, "StackId" | "StackName" | "StackStatus" | "CreationTime" | "LastUpdatedTime"> {
   Profile: string;
+  Region: string;
   Template?: CloudFormationTemplate;
 }
 
@@ -48,6 +49,7 @@ export const StackInfoForCsv = {
     CreationTime,
     LastUpdatedTime,
     Profile,
+    Region,
     ResourceTypes,
     DefinedWithGuCDK,
     GuCDKVersion,
@@ -59,6 +61,7 @@ export const StackInfoForCsv = {
       CreationTime,
       LastUpdatedTime,
       Profile,
+      Region,
       ResourceTypes,
       DefinedWithGuCDK,
       GuCDKVersion,

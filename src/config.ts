@@ -3,7 +3,7 @@ export const Config = {
   SDK_MAX_ATTEMPTS: 10,
   CSV_OUTPUT_DIR: "output/data",
   TEMPLATE_OUTPUT_DIR: "output/templates",
-  AWS_REGION: "eu-west-1",
+  AWS_REGIONS: ["eu-west-1", "us-east-1", "us-west-1"],
   AWS_PROFILES: [
     "deployTools",
     "capi",
