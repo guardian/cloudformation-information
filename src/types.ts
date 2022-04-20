@@ -39,22 +39,28 @@ export interface StackInfo extends StackMetadata {
   GuCDKVersion?: string;
 }
 
-export type StackInfoForCsv = Omit<StackInfo, "Template">;
+export interface StackInfoForCsv extends Omit<StackInfo, "Template"> {
+  ReportTime: Date;
+}
 
 export const StackInfoForCsv = {
-  fromStackInfo({
-    StackId,
-    StackName,
-    StackStatus,
-    CreationTime,
-    LastUpdatedTime,
-    Profile,
-    Region,
-    ResourceTypes,
-    DefinedWithGuCDK,
-    GuCDKVersion,
-  }: StackInfo): StackInfoForCsv {
+  fromStackInfo(
+    reportTime: Date,
+    {
+      StackId,
+      StackName,
+      StackStatus,
+      CreationTime,
+      LastUpdatedTime,
+      Profile,
+      Region,
+      ResourceTypes,
+      DefinedWithGuCDK,
+      GuCDKVersion,
+    }: StackInfo
+  ): StackInfoForCsv {
     return {
+      ReportTime: reportTime,
       StackId,
       StackName,
       StackStatus,

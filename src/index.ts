@@ -16,6 +16,8 @@ async function main(): Promise<StackInfoForCsv[]> {
   ensureCleanDirectory(Config.CSV_OUTPUT_DIR);
   ensureCleanDirectory(Config.TEMPLATE_OUTPUT_DIR);
 
+  const now = new Date();
+
   const stackInfo: Array<Awaited<StackInfoForCsv[]>> = await Promise.all(
     Config.AWS_PROFILES.map((profile) => {
       return Config.AWS_REGIONS.map(async (region) => {
@@ -23,7 +25,7 @@ async function main(): Promise<StackInfoForCsv[]> {
         mkdirSync(templateDir, { recursive: true });
 
         const data = await new CloudFormationInformation(profile, region, templateDir).run();
-        const dataForCsv = data.map((data) => StackInfoForCsv.fromStackInfo(data));
+        const dataForCsv = data.map((data) => StackInfoForCsv.fromStackInfo(now, data));
 
         if (dataForCsv.length > 0) {
           writeFileSync(
