@@ -1,8 +1,13 @@
+import path from "path";
+
+const outputDir = path.join(__dirname, "..", "output");
+
 export const Config = {
   GU_CDK_TAG: "gu:cdk:version",
   SDK_MAX_ATTEMPTS: 10,
-  CSV_OUTPUT_DIR: "output/data",
-  TEMPLATE_OUTPUT_DIR: "output/templates",
+  CSV_OUTPUT_DIR: path.join(outputDir, "data"),
+  TEMPLATE_OUTPUT_DIR: path.join(outputDir, "templates"),
+  ORIGINAL_TEMPLATE_OUTPUT_DIR: path.join(outputDir, "original-templates"),
   AWS_REGIONS: ["eu-west-1", "us-east-1", "us-west-1"],
   AWS_PROFILES: [
     "deployTools",
