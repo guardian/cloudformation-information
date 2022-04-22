@@ -1,5 +1,7 @@
 import type { Stack } from "@aws-sdk/client-cloudformation";
 
+export type StackName = string;
+
 export interface Parameter {
   Type: string;
   Description?: string;
@@ -21,20 +23,41 @@ export interface Resource {
   Properties?: Record<string, ResourceProperties>;
 }
 
+export type LogicalId = string;
+
 export interface CloudFormationTemplate {
   Parameters?: Record<string, Parameter>;
-  Resources: Record<string, Resource>;
+  Resources: Record<LogicalId, Resource>;
 }
+
+export const EMPTY_CLOUDFORMATION_TEMPLATE: CloudFormationTemplate = {
+  Resources: {},
+};
 
 export interface StackMetadata extends Stack {
   Profile: string;
   Region: string;
-  Template?: CloudFormationTemplate;
+  Template: CloudFormationTemplate;
+}
+
+export interface ResourceTypeReport {
+  ResourceType: string;
+  FollowsBestPractice?: boolean;
 }
 
 export interface StackMetadataForCsv extends StackMetadata {
   ReportTime: Date;
-  ResourceTypes: string[];
+  ResourceTypes: ResourceTypeReport[];
   DefinedWithGuCDK: boolean;
   GuCDKVersion?: string;
+}
+
+export interface SecurityGroupIngressRule {
+  IpProtocol: "tcp" | "udp" | "icmp";
+  FromPort: number;
+  ToPort: number;
+}
+
+export interface SecurityGroupProperties extends ResourceProperties {
+  SecurityGroupIngress?: SecurityGroupIngressRule[];
 }

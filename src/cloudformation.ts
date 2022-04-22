@@ -44,15 +44,9 @@ export class CloudFormation {
       return Promise.reject(`No template found for ${stackArn}`);
     } else {
       await writeFile(path.join(this.originalTemplateDirectory, stackName), TemplateBody);
-      try {
-        const template = stringToCloudFormationTemplate(TemplateBody);
-        await writeFile(path.join(this.templateDirectory, stackName), JSON.stringify(template, null, 2));
-        return template;
-      } catch (err) {
-        return Promise.reject(
-          `[${this.profile}] Unable to determine a JSON or YAML template for stack ${stackName} (${stackArn})`
-        );
-      }
+      const template = stringToCloudFormationTemplate(TemplateBody, stackName, this.profile);
+      await writeFile(path.join(this.templateDirectory, stackName), JSON.stringify(template, null, 2));
+      return template;
     }
   }
 
@@ -60,7 +54,7 @@ export class CloudFormation {
    * Get information about all the stacks running in `this.region` for the AWS account.
    * The stack's template will also be downloaded.
    */
-  async getStacks(): Promise<StackMetadata[]> {
+  private async getStacksFromAws(): Promise<StackMetadata[]> {
     ensureCleanDirectory(this.originalTemplateDirectory);
     ensureCleanDirectory(this.templateDirectory);
 
@@ -72,23 +66,15 @@ export class CloudFormation {
       if (page.Stacks) {
         stacks.push(
           ...page.Stacks.map(async (stack: Stack) => {
-            const baseResponse: StackMetadata = {
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- AWS's types are strange, `StackId` and `StackName` are never going to be `undefined`
+            const template = await this.downloadTemplate(stack.StackId!, stack.StackName!);
+
+            return {
               ...stack,
               Profile: this.profile,
               Region: this.region,
+              Template: template,
             };
-
-            try {
-              // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- AWS's types are strange, `StackId` and `StackName` are never going to be `undefined`
-              const template = await this.downloadTemplate(stack.StackId!, stack.StackName!);
-
-              return {
-                ...baseResponse,
-                Template: template,
-              };
-            } catch (e) {
-              return baseResponse;
-            }
           })
         );
       }
@@ -97,29 +83,38 @@ export class CloudFormation {
     return Promise.all(stacks);
   }
 
+  private async getStacksFromDisk(): Promise<StackMetadata[]> {
+    const templates = await readdir(this.templateDirectory);
+
+    return Promise.all(
+      templates.map(async (stackName) => {
+        const fileContent = await readFile(path.join(this.templateDirectory, stackName));
+
+        return {
+          // This info is not cached anywhere
+          CreationTime: undefined,
+          StackStatus: undefined,
+
+          StackName: stackName,
+          Region: this.region,
+          Profile: this.profile,
+          Template: stringToCloudFormationTemplate(fileContent.toString(), stackName, this.profile),
+        };
+      })
+    );
+  }
+
   /**
    * Get templates for stacks running in `this.region`.
    *
    * @param preferCache when true and `this.templateDirectory` exists, read templates from disk
    */
-  async getTemplates(preferCache: boolean): Promise<Array<Record<string, CloudFormationTemplate>>> {
+  async getStacks(preferCache: boolean): Promise<StackMetadata[]> {
     if (preferCache && existsSync(this.templateDirectory)) {
       console.log(`loading templates from ${this.templateDirectory}`);
-      return Promise.all(
-        (await readdir(this.templateDirectory)).map(async (stackName) => {
-          const content = await readFile(path.join(this.templateDirectory, stackName));
-          return { [stackName]: stringToCloudFormationTemplate(content.toString()) };
-        })
-      );
+      return this.getStacksFromDisk();
+    } else {
+      return this.getStacksFromAws();
     }
-
-    return Promise.resolve(
-      (await this.getStacks()).map(({ StackName, Template }) => {
-        return {
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- AWS's types are strange, `StackName` is never going to be `undefined`
-          [StackName!]: Template ?? ({} as CloudFormationTemplate),
-        };
-      })
-    );
   }
 }
