@@ -1,4 +1,4 @@
-import type { CloudFormationTemplate, LogicalId, Resource, ResourceProperties } from "../types";
+import type { CloudFormationTemplate, LogicalId, Resource, ResourceProperties, ResourceRule } from "../types";
 import { getResourcesByType } from "../util";
 
 interface IamStatement {
@@ -35,13 +35,17 @@ function hasNoStarActions(resource: Resource): boolean {
   }
 }
 
-export function validate(template: CloudFormationTemplate): Record<LogicalId, boolean> {
-  const resources = getResourcesByType("AWS::IAM::Policy", template);
+export const IamResources: ResourceRule = {
+  resourceType: "AWS::IAM::Policy",
 
-  return Object.entries(resources).reduce((acc, [logicalId, resource]) => {
-    return {
-      ...acc,
-      [logicalId]: hasNoStarActions(resource),
-    };
-  }, {});
-}
+  validate(template: CloudFormationTemplate): Record<LogicalId, boolean> {
+    const resources = getResourcesByType(IamResources.resourceType, template);
+
+    return Object.entries(resources).reduce((acc, [logicalId, resource]) => {
+      return {
+        ...acc,
+        [logicalId]: hasNoStarActions(resource),
+      };
+    }, {});
+  },
+};

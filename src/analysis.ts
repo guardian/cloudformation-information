@@ -1,6 +1,6 @@
 import { Config } from "./config";
-import { validate as validateIam } from "./rules/iam";
-import { validate as validateSecurityGroups } from "./rules/security-group";
+import { IamResources } from "./rules/iam";
+import { SecurityGroupResources } from "./rules/security-group";
 import type { CloudFormationTemplate, ResourceTypeReport } from "./types";
 
 export function uniqueTemplateResourceTypes({ Resources }: CloudFormationTemplate): string[] {
@@ -26,15 +26,15 @@ export function guCDKVersion({ Resources }: CloudFormationTemplate): string | un
 export function validateResources(template: CloudFormationTemplate): ResourceTypeReport[] {
   return uniqueTemplateResourceTypes(template).map((resourceType) => {
     switch (resourceType) {
-      case "AWS::EC2::SecurityGroup":
+      case SecurityGroupResources.resourceType:
         return {
           ResourceType: resourceType,
-          FollowsBestPractice: !new Set(Object.values(validateSecurityGroups(template))).has(false),
+          FollowsBestPractice: !new Set(Object.values(SecurityGroupResources.validate(template))).has(false),
         };
-      case "AWS::IAM::Policy":
+      case IamResources.resourceType:
         return {
           ResourceType: resourceType,
-          FollowsBestPractice: !new Set(Object.values(validateIam(template))).has(false),
+          FollowsBestPractice: !new Set(Object.values(IamResources.validate(template))).has(false),
         };
       default:
         return {

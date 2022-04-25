@@ -54,3 +54,8 @@ export interface StackMetadataForCsv extends StackMetadata {
   DefinedWithGuCDK: boolean;
   GuCDKVersion?: string;
 }
+
+export interface ResourceRule {
+  resourceType: string;
+  validate: (template: CloudFormationTemplate) => Record<LogicalId, boolean>;
+}

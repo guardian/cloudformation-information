@@ -1,4 +1,4 @@
-import type { CloudFormationTemplate, LogicalId, Resource, ResourceProperties } from "../types";
+import type { CloudFormationTemplate, LogicalId, Resource, ResourceProperties, ResourceRule } from "../types";
 import { getResourcesByType } from "../util";
 
 interface SecurityGroupIngressRule {
@@ -31,13 +31,17 @@ function isSshBlocked(resource: Resource): boolean {
   }
 }
 
-export function validate(template: CloudFormationTemplate): Record<LogicalId, boolean> {
-  const securityGroups = getResourcesByType("AWS::EC2::SecurityGroup", template);
+export const SecurityGroupResources: ResourceRule = {
+  resourceType: "AWS::EC2::SecurityGroup",
 
-  return Object.entries(securityGroups).reduce((acc, [logicalId, sg]) => {
-    return {
-      ...acc,
-      [logicalId]: isSshBlocked(sg),
-    };
-  }, {});
-}
+  validate(template: CloudFormationTemplate): Record<LogicalId, boolean> {
+    const securityGroups = getResourcesByType(SecurityGroupResources.resourceType, template);
+
+    return Object.entries(securityGroups).reduce((acc, [logicalId, sg]) => {
+      return {
+        ...acc,
+        [logicalId]: isSshBlocked(sg),
+      };
+    }, {});
+  },
+};
