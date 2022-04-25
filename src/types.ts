@@ -15,6 +15,7 @@ export interface Parameter {
 export interface ResourceTag {
   Key: string;
   Value: string;
+  PropagateAtLaunch?: string;
 }
 
 export interface ResourceProperties {
@@ -23,7 +24,7 @@ export interface ResourceProperties {
 
 export interface Resource {
   Type: string;
-  Properties?: Record<string, ResourceProperties>;
+  Properties?: ResourceProperties;
 }
 
 export type LogicalId = string;

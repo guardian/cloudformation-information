@@ -1,4 +1,5 @@
 import { Config } from "./config";
+import { Asg } from "./rules/asg";
 import { IamResources } from "./rules/iam";
 import { SecurityGroupResources } from "./rules/security-group";
 import type { CloudFormationTemplate, ResourceTypeReport } from "./types";
@@ -35,6 +36,11 @@ export function validateResources(template: CloudFormationTemplate): ResourceTyp
         return {
           ResourceType: resourceType,
           FollowsBestPractice: !new Set(Object.values(IamResources.validate(template))).has(false),
+        };
+      case Asg.resourceType:
+        return {
+          ResourceType: resourceType,
+          FollowsBestPractice: !new Set(Object.values(Asg.validate(template))).has(false),
         };
       default:
         return {
