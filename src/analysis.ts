@@ -36,7 +36,7 @@ export function validateResources(template: CloudFormationTemplate): ResourceTyp
       case "AWS::EC2::SecurityGroup":
         return {
           ResourceType: resourceType,
-          FollowsBestPractice: Object.values(validateSecurityGroups(template)).some((isValid) => !isValid),
+          FollowsBestPractice: !new Set(Object.values(validateSecurityGroups(template))).has(false),
         };
       default:
         return {
@@ -69,13 +69,10 @@ function isSshBlocked(resource: Resource): boolean {
 function validateSecurityGroups(template: CloudFormationTemplate): Record<LogicalId, boolean> {
   const securityGroups = getResourcesByType("AWS::EC2::SecurityGroup", template);
 
-  const x = Object.entries(securityGroups).reduce((acc, [logicalId, sg]) => {
+  return Object.entries(securityGroups).reduce((acc, [logicalId, sg]) => {
     return {
       ...acc,
       [logicalId]: isSshBlocked(sg),
     };
   }, {});
-
-  console.log(JSON.stringify(x, null, 2));
-  return x;
 }
