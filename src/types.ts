@@ -1,5 +1,8 @@
 import type { Stack } from "@aws-sdk/client-cloudformation";
 
+export const LOG_LEVELS = ["debug", "log", "warn", "error", "off"] as const;
+export type LogLevel = typeof LOG_LEVELS[number];
+
 export type StackName = string;
 
 export interface Parameter {

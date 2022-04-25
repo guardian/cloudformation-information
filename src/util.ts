@@ -5,10 +5,10 @@ import { EMPTY_CLOUDFORMATION_TEMPLATE } from "./types";
 
 export function ensureCleanDirectory(name: string) {
   if (existsSync(name)) {
-    console.log(`Removing pre-existing directory ${name}`);
+    console.debug(`Removing pre-existing directory ${name}`);
     rmSync(name, { recursive: true });
   }
-  console.log(`Creating directory ${name}`);
+  console.debug(`Creating directory ${name}`);
   mkdirSync(name, { recursive: true });
 }
 
