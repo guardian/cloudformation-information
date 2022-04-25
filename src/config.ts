@@ -2,7 +2,10 @@ import path from "path";
 
 const outputDir = path.join(__dirname, "..", "output");
 
+const [, , firstFlag] = process.argv;
+
 export const Config = {
+  PREFER_CACHE: firstFlag === "--prefer-cache",
   GU_CDK_TAG: "gu:cdk:version",
   SDK_MAX_ATTEMPTS: 10,
   CSV_OUTPUT_DIR: path.join(outputDir, "data"),

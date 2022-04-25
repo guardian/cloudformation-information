@@ -46,7 +46,7 @@ export async function run() {
         mkdirSync(templateDir, { recursive: true });
 
         const cfn = new CloudFormation(profile, region);
-        const stacks = await cfn.getStacks(true);
+        const stacks = await cfn.getStacks(Config.PREFER_CACHE);
 
         const dataForCsv = stacks
           .filter(({ StackStatus: status }) => status !== StackStatus.DELETE_COMPLETE)

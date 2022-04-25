@@ -19,7 +19,7 @@ This is to help understand which stacks should be migrated next.
 1. Get CloudFormation Read credentials from Janus for each account you want to report for
 2. Update the list of profiles in [`src/config.ts`](./src/config.ts) to match the credentials obtained from step 1
 3. Install dependencies `npm install` (see [`.nvmrc`](./.nvmrc) for node version)
-4. Run `npm run start`
+4. Run `npm run start [-- --prefer-cache]`
 
 ## Limitations
 - Every so often AWS requests will experience throttling, efforts have been made to solve this, but they do not work in all scenarios
