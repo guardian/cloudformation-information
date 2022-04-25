@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, rmSync } from "fs";
 import { yamlParse } from "yaml-cfn";
-import type { CloudFormationTemplate } from "./types";
+import type { CloudFormationTemplate, LogicalId, Resource } from "./types";
 import { EMPTY_CLOUDFORMATION_TEMPLATE } from "./types";
 
 export function ensureCleanDirectory(name: string) {
@@ -30,4 +30,13 @@ export function stringToCloudFormationTemplate(
       return EMPTY_CLOUDFORMATION_TEMPLATE;
     }
   }
+}
+
+export function getResourcesByType(
+  resourceType: string,
+  { Resources }: CloudFormationTemplate
+): Record<LogicalId, Resource> {
+  return Object.entries(Resources)
+    .filter(([, resource]) => resource.Type === resourceType)
+    .reduce((acc, [logicalId, resource]) => ({ ...acc, [logicalId]: resource }), {});
 }

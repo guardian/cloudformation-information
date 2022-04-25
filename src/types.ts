@@ -54,13 +54,3 @@ export interface StackMetadataForCsv extends StackMetadata {
   DefinedWithGuCDK: boolean;
   GuCDKVersion?: string;
 }
-
-export interface SecurityGroupIngressRule {
-  IpProtocol: "tcp" | "udp" | "icmp";
-  FromPort: number;
-  ToPort: number;
-}
-
-export interface SecurityGroupProperties extends ResourceProperties {
-  SecurityGroupIngress?: SecurityGroupIngressRule[];
-}
