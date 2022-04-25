@@ -42,6 +42,11 @@ export function validateResources(template: CloudFormationTemplate): ResourceTyp
           ResourceType: resourceType,
           FollowsBestPractice: !new Set(Object.values(Asg.validate(template))).has(false),
         };
+      case "AWS::ElasticLoadBalancing::LoadBalancer":
+        return {
+          ResourceType: resourceType,
+          FollowsBestPractice: false,
+        };
       default:
         return {
           ResourceType: resourceType,
