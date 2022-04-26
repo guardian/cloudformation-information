@@ -1,27 +1,8 @@
 import path from "path";
-import type { LogLevel } from "./types";
-import { LOG_LEVELS } from "./types";
 
 const outputDir = path.join(__dirname, "..", "output");
 
-const [, , ...args] = process.argv;
-
-function getLogLevel(): LogLevel {
-  const defaultLogLevel: LogLevel = "log";
-
-  const logArg = args.find((arg) => arg.startsWith("--log-level="));
-
-  if (!logArg) {
-    return defaultLogLevel;
-  }
-
-  const [, level] = logArg.split("=");
-  return LOG_LEVELS.includes(level as LogLevel) ? (level as LogLevel) : defaultLogLevel;
-}
-
 export const Config = {
-  PREFER_CACHE: args.includes("--prefer-cache"),
-  LOG_LEVEL: getLogLevel(),
   GU_CDK_TAG: "gu:cdk:version",
   SDK_MAX_ATTEMPTS: 10,
   CSV_OUTPUT_DIR: path.join(outputDir, "data"),

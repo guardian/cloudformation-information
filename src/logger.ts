@@ -1,10 +1,14 @@
-import { Config } from "./config";
 import type { LogLevel } from "./types";
 import { LOG_LEVELS } from "./types";
 
-export function configure() {
+export const getLogLevel = (logArg: string): LogLevel => {
+  const defaultLogLevel: LogLevel = "log";
+  return LOG_LEVELS.includes(logArg as LogLevel) ? (logArg as LogLevel) : defaultLogLevel;
+};
+
+export function configure(logLevel: LogLevel) {
   const shouldLog = (level: LogLevel) => {
-    return LOG_LEVELS.indexOf(level) >= LOG_LEVELS.indexOf(Config.LOG_LEVEL);
+    return LOG_LEVELS.indexOf(level) >= LOG_LEVELS.indexOf(logLevel);
   };
 
   const _console = console;
