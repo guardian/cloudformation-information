@@ -11,11 +11,12 @@ void yargs(hideBin(process.argv))
     (yargs) => {
       yargs.option("prefer-cache", {
         type: "boolean",
-        description: "use local cache and fail is not found",
+        description: "use local cache",
       });
       yargs.option("log-level", {
         type: "string",
         description: `define log level (${LOG_LEVELS.join(",")})`,
+        choices: LOG_LEVELS,
       });
     },
     (argv) => {
