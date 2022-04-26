@@ -1,6 +1,7 @@
 import { Config } from "./config";
 import { Asg } from "./rules/asg";
 import { IamResources } from "./rules/iam";
+import { S3Bucket } from "./rules/s3";
 import { SecurityGroupResources } from "./rules/security-group";
 import type { CloudFormationTemplate, ResourceTypeReport } from "./types";
 
@@ -46,6 +47,11 @@ export function validateResources(template: CloudFormationTemplate): ResourceTyp
         return {
           ResourceType: resourceType,
           FollowsBestPractice: false,
+        };
+      case S3Bucket.resourceType:
+        return {
+          ResourceType: resourceType,
+          FollowsBestPractice: !new Set(Object.values(S3Bucket.validate(template))).has(false),
         };
       default:
         return {
