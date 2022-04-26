@@ -1,4 +1,4 @@
-import { existsSync } from "fs";
+import { existsSync, mkdirSync } from "fs";
 import { readdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import type { Stack } from "@aws-sdk/client-cloudformation";
@@ -20,6 +20,8 @@ export class CloudFormation {
     this.region = region;
     this.templateDirectory = path.join(Config.TEMPLATE_OUTPUT_DIR, region, profile);
     this.originalTemplateDirectory = path.join(Config.ORIGINAL_TEMPLATE_OUTPUT_DIR, region, profile);
+
+    mkdirSync(this.templateDirectory, { recursive: true });
 
     this.client = new CloudFormationClient({
       region,
@@ -118,3 +120,21 @@ export class CloudFormation {
     }
   }
 }
+
+export const getStacks = async (
+  profiles: string[],
+  regions: string[],
+  preferCache: boolean
+): Promise<StackMetadata[]> => {
+  // Build [profile,region] combos.
+  const targets = profiles.flatMap((profile) => {
+    return regions.map((region) => [profile, region]);
+  });
+
+  const stacks = targets.map(async ([profile, region]) => {
+    const cfn = new CloudFormation(profile, region);
+    return await cfn.getStacks(preferCache);
+  });
+
+  return (await Promise.all(stacks)).flat();
+};

@@ -1,8 +1,22 @@
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
+import { Config } from "./config";
+import { run as runListInactive } from "./list-inactive";
 import { configure as configureLogging, getLogLevel } from "./logger";
 import { run as stackReport } from "./stack-report";
 import { LOG_LEVELS } from "./types";
+
+const doForAll = <A>(
+  profiles: string[],
+  regions: string[],
+  fn: (profile: string, region: string) => Promise<A>
+): Promise<A[]> => {
+  const targets = profiles.flatMap((profile) => {
+    return regions.map((region) => [profile, region]);
+  });
+
+  return Promise.all(targets.map(([profile, region]) => fn(profile, region)));
+};
 
 void yargs(hideBin(process.argv))
   .command(
@@ -12,11 +26,6 @@ void yargs(hideBin(process.argv))
       yargs.option("prefer-cache", {
         type: "boolean",
         description: "use local cache",
-      });
-      yargs.option("log-level", {
-        type: "string",
-        description: `define log level (${LOG_LEVELS.join(",")})`,
-        choices: LOG_LEVELS,
       });
     },
     (argv) => {
@@ -33,5 +42,21 @@ void yargs(hideBin(process.argv))
         });
     }
   )
-
+  .command(
+    "list-inactive",
+    "list stacks that appear inactive and can potentially be deleted. Note this uses simple heuristics and false positives are very likely.",
+    (yargs) => {
+      yargs;
+    },
+    async (argv) => {
+      const logLevel = getLogLevel(argv["log-level"] as string);
+      configureLogging(logLevel);
+      await doForAll(Config.AWS_PROFILES, Config.AWS_REGIONS, runListInactive);
+    }
+  )
+  .option("log-level", {
+    type: "string",
+    description: `define log level (${LOG_LEVELS.join(",")})`,
+    choices: LOG_LEVELS,
+  })
   .parse();

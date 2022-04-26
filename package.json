@@ -25,6 +25,9 @@
     "yaml-cfn": "^0.3.1"
   },
   "dependencies": {
+    "@aws-sdk/client-auto-scaling": "^3.76.0",
+    "@aws-sdk/client-ec2": "^3.76.0",
+    "@aws-sdk/client-lambda": "^3.79.0",
     "yargs": "^17.4.1"
   }
 }
