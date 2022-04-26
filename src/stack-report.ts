@@ -35,7 +35,7 @@ const csvOptions = {
   transforms: [transforms.unwind({ paths: ["ResourceTypes"] })],
 };
 
-export async function run() {
+export async function run(preferCache: boolean) {
   const now = new Date();
   ensureCleanDirectory(Config.CSV_OUTPUT_DIR);
 
@@ -46,7 +46,7 @@ export async function run() {
         mkdirSync(templateDir, { recursive: true });
 
         const cfn = new CloudFormation(profile, region);
-        const stacks = await cfn.getStacks(Config.PREFER_CACHE);
+        const stacks = await cfn.getStacks(preferCache);
 
         const dataForCsv = stacks
           .filter(({ StackStatus: status }) => status !== StackStatus.DELETE_COMPLETE)
