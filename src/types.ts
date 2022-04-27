@@ -25,6 +25,8 @@ export interface ResourceProperties {
 export interface Resource {
   Type: string;
   Properties?: ResourceProperties;
+  DeletionPolicy?: "Delete" | "Retain" | "Snapshot";
+  UpdateReplacePolicy?: "Delete" | "Retain" | "Snapshot";
 }
 
 export type LogicalId = string;
@@ -57,6 +59,16 @@ export interface StackMetadataForCsv extends StackMetadata {
 }
 
 export interface ResourceRule {
+  /**
+   * The CloudFormation resource identifier.
+   * @example AWS::S3::Bucket
+   * @see https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html
+   */
   resourceType: string;
+
+  /**
+   * A function that checks the definition of each resource of type [[resourceType]] against best practices,
+   * where `true` signals it best practice is being followed.
+   */
   validate: (template: CloudFormationTemplate) => Record<LogicalId, boolean>;
 }
