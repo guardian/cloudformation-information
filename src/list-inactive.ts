@@ -135,7 +135,7 @@ type Clients = {
   lambdaClient: LambdaClient;
 };
 
-export const run = async (profile: string, region: string, preferCache: boolean = false) => {
+export const run = async (profile: string, region: string, preferCache: boolean) => {
   // filter stacks to ASG and lambda
   const isStandardService = (metadata: StackMetadata): boolean => {
     return !!Object.entries(metadata.Template.Resources).find(

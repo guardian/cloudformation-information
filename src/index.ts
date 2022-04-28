@@ -9,13 +9,14 @@ import { LOG_LEVELS } from "./types";
 const doForAll = <A>(
   profiles: string[],
   regions: string[],
-  fn: (profile: string, region: string) => Promise<A>
+  preferCache: boolean,
+  fn: (profile: string, region: string, preferCache: boolean) => Promise<A>
 ): Promise<A[]> => {
   const targets = profiles.flatMap((profile) => {
     return regions.map((region) => [profile, region]);
   });
 
-  return Promise.all(targets.map(([profile, region]) => fn(profile, region)));
+  return Promise.all(targets.map(([profile, region]) => fn(profile, region, preferCache)));
 };
 
 void yargs(hideBin(process.argv))
@@ -28,18 +29,18 @@ void yargs(hideBin(process.argv))
         description: "use local cache",
       });
     },
-    (argv) => {
+    async (argv) => {
       const preferCache = argv["prefer-cache"] as boolean;
       const logLevel = getLogLevel(argv["log-level"] as string);
 
       configureLogging(logLevel);
 
-      stackReport(preferCache)
-        .then(() => console.log("Done"))
-        .catch((err) => {
-          console.error(err);
-          process.exit(1);
-        });
+      try {
+        await doForAll(Config.AWS_PROFILES, Config.AWS_REGIONS, preferCache, stackReport);
+      } catch (err) {
+        console.error(err);
+        process.exit(1);
+      }
     }
   )
   .command(
@@ -50,8 +51,16 @@ void yargs(hideBin(process.argv))
     },
     async (argv) => {
       const logLevel = getLogLevel(argv["log-level"] as string);
+      const preferCache = argv["prefer-cache"] as boolean;
+
       configureLogging(logLevel);
-      await doForAll(Config.AWS_PROFILES, Config.AWS_REGIONS, runListInactive);
+
+      try {
+        await doForAll(Config.AWS_PROFILES, Config.AWS_REGIONS, preferCache, runListInactive);
+      } catch (err) {
+        console.error(err);
+        process.exit(1);
+      }
     }
   )
   .option("log-level", {
