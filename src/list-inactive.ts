@@ -11,6 +11,11 @@ const Inactive = {
   NoRecentAsgDeployment: "Stack ASG has not been deployed to in the last month.",
   NoRecentLambdaDeployment: "Stack Lambda has not been updated in the last 6 months.",
   TestInName: "Stack name contains 'Test', which suggests it may be temporary.",
+  StackCreateFailed: "Stack is in the 'CREATE_FAILED' state.",
+  StackDeleteFailed: "Stack is in the 'DELETE_FAILED' state and must be deleted.",
+  StackRollbackComplete: "Stack is in the 'ROLLBACK_COMPLETE' state and must be deleted.",
+  StackRollbackFailed:
+    "Stack is in the 'ROLLBACK_FAILED' state. A delete was attempted and failed. Check the events on the stack and try again.",
 };
 
 type InactiveStatus = keyof typeof Inactive;
@@ -47,6 +52,21 @@ const noRecentUpdate = (metadata: StackMetadata): Promise<InactiveStatus | undef
   const stackDate = (metadata.LastUpdatedTime ?? metadata.CreationTime) as Date;
   const isOld = twoYearsAgo > stackDate;
   return isOld ? Promise.resolve("NoRecentUpdate") : Promise.resolve(undefined);
+};
+
+const badStackState = (metadata: StackMetadata): Promise<InactiveStatus | undefined> => {
+  switch (metadata.StackStatus) {
+    case "CREATE_FAILED":
+      return Promise.resolve("StackCreateFailed");
+    case "DELETE_FAILED":
+      return Promise.resolve("StackDeleteFailed");
+    case "ROLLBACK_COMPLETE":
+      return Promise.resolve("StackRollbackComplete");
+    case "ROLLBACK_FAILED":
+      return Promise.resolve("StackRollbackFailed");
+    default:
+      return Promise.resolve(undefined);
+  }
 };
 
 const testInName = (metadata: StackMetadata): Promise<InactiveStatus | undefined> => {
@@ -113,6 +133,7 @@ const noRecentAsgDeployment = async (
   const activities = describeScalingActivitiesOutput.Activities ?? [];
 
   const userRequests = activities.filter((activity) => activity.Cause?.includes("user request"));
+  if (userRequests.length === 0) return "NoRecentAsgDeployment";
 
   const lastUserRequest = userRequests[0].StartTime;
   if (!lastUserRequest) return "NoRecentAsgDeployment";
@@ -165,6 +186,7 @@ export const run = async (profile: string, region: string, preferCache: boolean)
 
   const services = stacks.filter(isStandardService);
   const checks = [
+    badStackState,
     noRecentUpdate,
     testInName,
     noRecentAsgDeployment.bind(null, clients),
@@ -177,6 +199,7 @@ export const run = async (profile: string, region: string, preferCache: boolean)
       const res = await check(service);
       if (res) {
         failures.push([service, res]);
+        break;
       }
     }
   }
