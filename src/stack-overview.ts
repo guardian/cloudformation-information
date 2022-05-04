@@ -1,7 +1,10 @@
+import { writeFileSync } from "fs";
+import path from "path";
 import { AutoScalingClient, DescribeScalingActivitiesCommand } from "@aws-sdk/client-auto-scaling";
 import { CloudFormationClient, DescribeStackResourceCommand } from "@aws-sdk/client-cloudformation";
 import { GetFunctionCommand, LambdaClient } from "@aws-sdk/client-lambda";
 import { fromIni } from "@aws-sdk/credential-provider-ini";
+import { parse } from "json2csv";
 import { getStacks } from "./cloudformation";
 import { Config } from "./config";
 import type { StackMetadata } from "./types";
@@ -18,35 +21,70 @@ const Inactive = {
     "Stack is in the 'ROLLBACK_FAILED' state. A delete was attempted and failed. Check the events on the stack and try again.",
 };
 
-type InactiveStatus = keyof typeof Inactive;
+type InactiveStatus = keyof typeof Inactive | undefined;
 
-const marshallTxt = (profile: string, region: string, stacks: Map<StackMetadata, InactiveStatus>): string => {
-  if (stacks.size === 0) return "";
+const csvOptions = {
+  fields: [
+    "ReportTime",
+    "StackId",
+    "StackName",
+    "StackStatus",
+    "CreationTime",
+    "LastUpdatedTime",
+    "Profile",
+    "Region",
+    "DefinedWithGuCDK",
+    "GuCDKVersion",
+    "PossiblyInactive",
+    "InactiveReason",
+    "InactiveDescription",
+  ],
+};
+
+type OutputFmt = {
+  ReportTime: Date;
+  StackId?: string;
+  StackName?: string;
+  StackStatus?: string;
+  CreationTime?: Date;
+  LastUpdatedTime?: Date;
+  Profile: string;
+  Region: string;
+  DefinedWithGuCDK: boolean;
+  GuCDKVersion?: string;
+  PossiblyInactive: boolean;
+  InactiveReason?: string;
+  InactiveDescription?: string;
+};
+
+const guCDKVersion = (meta: StackMetadata): string | undefined => {
+  const tags = meta.Tags ?? [];
+  const versionTag = tags.find((tag) => tag.Key && tag.Key === "gu:cdk:version");
+  return versionTag ? versionTag.Value : undefined;
+};
+
+const toOutputFmt = (stacks: Map<StackMetadata, InactiveStatus>): OutputFmt[] => {
+  if (stacks.size === 0) return [];
 
   const kvs = [...stacks.entries()];
 
-  const lastUpdatedWidth = new Date().toISOString().length;
-  const stackNameWidth = kvs
-    .map(([meta]) => (meta.StackName ?? "").length)
-    .sort()
-    .reverse()[0];
+  const stackData = kvs.map(([meta, status]) => {
+    const version = guCDKVersion(meta);
+    return {
+      ...meta,
+      ReportTime: new Date(),
+      DefinedWithGuCDK: !!version,
+      GuCDKVersion: version,
+      PossiblyInactive: !!status,
+      InactiveReason: status,
+      InactiveDescription: status ? Inactive[status] : undefined,
+    };
+  });
 
-  const paddedLastUpdated = (m: StackMetadata): string => {
-    const dt = (m.LastUpdatedTime ?? m.CreationTime)?.toISOString() ?? "";
-    return dt.padEnd(lastUpdatedWidth);
-  };
-
-  const paddedStackName = (m: StackMetadata): string => {
-    return (m.StackName ?? "").padEnd(stackNameWidth);
-  };
-
-  return `${profile}:${region}
-${"Last updated".padEnd(lastUpdatedWidth)}|${"StackName".padEnd(stackNameWidth)}|Reason
-${kvs.map(([meta, reason]) => `${paddedLastUpdated(meta)}|${paddedStackName(meta)}|${Inactive[reason]}`).join("\n")}
-`;
+  return stackData;
 };
 
-const noRecentUpdate = (metadata: StackMetadata): Promise<InactiveStatus | undefined> => {
+const noRecentUpdate = (metadata: StackMetadata): Promise<InactiveStatus> => {
   const twoYearsAgo = new Date();
   twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
   const stackDate = (metadata.LastUpdatedTime ?? metadata.CreationTime) as Date;
@@ -54,7 +92,7 @@ const noRecentUpdate = (metadata: StackMetadata): Promise<InactiveStatus | undef
   return isOld ? Promise.resolve("NoRecentUpdate") : Promise.resolve(undefined);
 };
 
-const badStackState = (metadata: StackMetadata): Promise<InactiveStatus | undefined> => {
+const badStackState = (metadata: StackMetadata): Promise<InactiveStatus> => {
   switch (metadata.StackStatus) {
     case "CREATE_FAILED":
       return Promise.resolve("StackCreateFailed");
@@ -69,16 +107,13 @@ const badStackState = (metadata: StackMetadata): Promise<InactiveStatus | undefi
   }
 };
 
-const testInName = (metadata: StackMetadata): Promise<InactiveStatus | undefined> => {
+const testInName = (metadata: StackMetadata): Promise<InactiveStatus> => {
   const matches = metadata.StackName?.toLowerCase().includes("test");
   return matches ? Promise.resolve("TestInName") : Promise.resolve(undefined);
 };
 
 // Lambda - lastModified :)
-const noRecentLambdaDeployment = async (
-  clients: Clients,
-  metadata: StackMetadata
-): Promise<InactiveStatus | undefined> => {
+const noRecentLambdaDeployment = async (clients: Clients, metadata: StackMetadata): Promise<InactiveStatus> => {
   // get lambda and then query lastmodified
 
   const lambda = Object.entries(metadata.Template.Resources).find(
@@ -113,10 +148,7 @@ const noRecentLambdaDeployment = async (
   return lastModified < sixMonthsAgo ? "NoRecentLambdaDeployment" : undefined;
 };
 
-const noRecentAsgDeployment = async (
-  clients: Clients,
-  metadata: StackMetadata
-): Promise<InactiveStatus | undefined> => {
+const noRecentAsgDeployment = async (clients: Clients, metadata: StackMetadata): Promise<InactiveStatus> => {
   const asg = Object.entries(metadata.Template.Resources).find(
     ([, resource]) => resource.Type === "AWS::AutoScaling::AutoScalingGroup"
   );
@@ -193,17 +225,24 @@ export const run = async (profile: string, region: string, preferCache: boolean)
     noRecentLambdaDeployment.bind(null, clients),
   ];
 
-  const failures: Array<[StackMetadata, InactiveStatus]> = [];
+  const data: Map<StackMetadata, InactiveStatus> = new Map();
   for (const service of services) {
     for (const check of checks) {
       const res = await check(service);
-      if (res) {
-        failures.push([service, res]);
-        break;
-      }
+      data.set(service, res);
+      if (res) break;
     }
   }
 
-  const out = marshallTxt(profile, region, new Map(failures));
-  console.log(out);
+  const dataForCsv = toOutputFmt(data);
+
+  const outputPath = path.join(Config.CSV_OUTPUT_DIR, `${profile}-${region}-stacks.csv`);
+  if (dataForCsv.length > 0) {
+    writeFileSync(outputPath, parse(dataForCsv, csvOptions));
+    console.log(`${outputPath}`);
+  } else {
+    console.log(`No data written for ${profile}:${region} (no stacks found).`);
+  }
+
+  return dataForCsv;
 };

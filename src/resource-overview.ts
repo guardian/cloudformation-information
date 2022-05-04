@@ -54,11 +54,13 @@ export const run = async (profile: string, region: string, preferCache: boolean)
       };
     });
 
+  const outputPath = path.join(Config.CSV_OUTPUT_DIR, `${profile}-${region}-resources.csv`);
   if (dataForCsv.length > 0) {
-    writeFileSync(path.join(Config.CSV_OUTPUT_DIR, `${profile}.csv`), parse(dataForCsv, csvOptions));
+    writeFileSync(outputPath, parse(dataForCsv, csvOptions));
+    console.log(`${outputPath}`);
+  } else {
+    console.log(`No data written for ${profile}:${region} (no stacks found).`);
   }
-
-  console.log(`Done. Files written to: ${Config.CSV_OUTPUT_DIR}`);
 
   return dataForCsv;
 };
