@@ -110,12 +110,12 @@ const noRecentAsgDeployment = async (
   const asgId = describeStackOutput.StackResourceDetail?.PhysicalResourceId;
   const describeScalingActivitiesCmd = new DescribeScalingActivitiesCommand({ AutoScalingGroupName: asgId });
   const describeScalingActivitiesOutput = await clients.asgClient.send(describeScalingActivitiesCmd);
-  const activities = describeScalingActivitiesOutput.Activities;
+  const activities = describeScalingActivitiesOutput.Activities ?? [];
 
-  if (!activities || activities.length === 0) return undefined;
+  const userRequests = activities.filter((activity) => activity.Cause?.includes("user request"));
 
-  const lastActivity = activities[0].StartTime;
-  if (!lastActivity) return undefined;
+  const lastUserRequest = userRequests[0].StartTime;
+  if (!lastUserRequest) return "NoRecentAsgDeployment";
 
   const oneMonthAgo = new Date();
   oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
@@ -123,10 +123,10 @@ const noRecentAsgDeployment = async (
   console.debug(
     `stack:${
       metadata.StackName ?? "unknown"
-    }; asg:${id}; lastActivity:${lastActivity.toISOString()}; oneMonthAgo:${oneMonthAgo.toISOString()}`
+    }; asg:${id}; lastActivity:${lastUserRequest.toISOString()}; oneMonthAgo:${oneMonthAgo.toISOString()}`
   );
 
-  return lastActivity < oneMonthAgo ? "NoRecentAsgDeployment" : undefined;
+  return lastUserRequest < oneMonthAgo ? "NoRecentAsgDeployment" : undefined;
 };
 
 type Clients = {
