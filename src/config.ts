@@ -8,7 +8,7 @@ export const Config = {
   CSV_OUTPUT_DIR: path.join(outputDir, "data"),
   TEMPLATE_OUTPUT_DIR: path.join(outputDir, "templates"),
   ORIGINAL_TEMPLATE_OUTPUT_DIR: path.join(outputDir, "original-templates"),
-  AWS_REGIONS: ["eu-west-1", "us-east-1", "us-west-1"],
+  AWS_REGIONS: ["eu-west-1"],
   AWS_PROFILES: [
     "deployTools",
     "capi",
